@@ -75,13 +75,16 @@ body { display: flex; flex-direction: column; max-width: 480px; margin: 0 auto; 
 /* Categories */
 .section-title { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; padding: 4px 20px 10px; font-family: 'DM Mono', monospace; }
 .cats { display: flex; flex-direction: column; gap: 6px; padding: 0 20px 4px; }
-.cat-row { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; }
+.cat-row { display: flex; flex-direction: column; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
+.cat-top { display: flex; align-items: center; gap: 10px; }
 .cat-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.cat-name { flex: 1; font-size: 13px; }
-.cat-used { font-size: 12px; color: var(--muted); font-family: 'DM Mono', monospace; }
-.cat-pct { font-size: 11px; font-family: 'DM Mono', monospace; width: 36px; text-align: right; }
-.cat-bar-wrap { flex: 1; height: 4px; background: var(--surface2); border-radius: 99px; overflow: hidden; }
-.cat-bar { height: 100%; border-radius: 99px; }
+.cat-name { flex: 1; font-size: 13px; font-weight: 500; }
+.cat-pct { font-size: 11px; font-family: 'DM Mono', monospace; }
+.cat-bar-wrap { width: 100%; height: 5px; background: var(--surface2); border-radius: 99px; overflow: hidden; }
+.cat-bar { height: 100%; border-radius: 99px; transition: width 0.4s ease; }
+.cat-nums { display: flex; justify-content: space-between; font-size: 11px; font-family: 'DM Mono', monospace; }
+.cat-gastado { color: var(--muted); }
+.cat-restante { font-weight: 500; }
 
 /* Add form */
 .add-form { margin: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 16px; }
@@ -279,17 +282,22 @@ function renderRegistro(c) {
   const catBars = Object.entries(CATS).map(([k, cat]) => {
     const gastado = porCat[k] || 0;
     const presupCat = cat.presup ? cfg[cat.presup] : Math.max(0, disp - cfg.mercaderia - cfg.ropa - cfg.salidas - cfg.libre);
+    const restante = presupCat - gastado;
     const pctCat = presupCat > 0 ? Math.min(100, Math.round((gastado / presupCat) * 100)) : 0;
     const barColor = pctCat >= 100 ? '#f06060' : cat.color;
+    const restColor = restante < 0 ? '#f06060' : restante === 0 ? 'var(--amber)' : 'var(--green)';
     return `
       <div class="cat-row">
-        <div class="cat-dot" style="background:${cat.color}"></div>
-        <div class="cat-name">${cat.label}</div>
-        <div style="flex:1;display:flex;flex-direction:column;gap:4px">
-          <div class="cat-bar-wrap"><div class="cat-bar" style="width:${pctCat}%;background:${barColor}"></div></div>
+        <div class="cat-top">
+          <div class="cat-dot" style="background:${cat.color}"></div>
+          <div class="cat-name">${cat.label}</div>
+          <div class="cat-pct" style="color:${barColor}">${pctCat}%</div>
         </div>
-        <div class="cat-pct" style="color:${barColor}">${pctCat}%</div>
-        <div class="cat-used">${fmt(gastado)}</div>
+        <div class="cat-bar-wrap"><div class="cat-bar" style="width:${pctCat}%;background:${barColor}"></div></div>
+        <div class="cat-nums">
+          <span class="cat-gastado">Gastado: ${fmt(gastado)} / ${fmt(presupCat)}</span>
+          <span class="cat-restante" style="color:${restColor}">Queda: ${fmt(restante)}</span>
+        </div>
       </div>`;
   }).join('');
 
