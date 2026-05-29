@@ -181,7 +181,7 @@ const CATS = {
   ropa:       { label: 'Ropa / zapatillas', color: '#a088f0', presup: 'ropa' },
   salidas:    { label: 'Salidas', color: '#f0b860', presup: 'salidas' },
   libre:      { label: 'Fondo libre', color: '#60a8f0', presup: 'libre' },
-  otro:       { label: 'Otro', color: '#7a8099', presup: null }
+  otro:       { label: 'Otro', color: '#7a8099', presup: 'otro' }
 };
 
 let hoy = new Date();
@@ -192,7 +192,7 @@ let vistaActual = 'registro';
 let cfg = {
   sueldo: 1250000, pension: 270000, caja: 110000, empresa: 110000,
   ahorro: 190000, suscripciones: 10000,
-  mercaderia: 250000, ropa: 50000, salidas: 80000, libre: 100000
+  mercaderia: 250000, ropa: 50000, salidas: 80000, libre: 100000, otro: 80000
 };
 let gastosDB = {};
 let deferredPrompt = null;
@@ -281,7 +281,7 @@ function renderRegistro(c) {
 
   const catBars = Object.entries(CATS).map(([k, cat]) => {
     const gastado = porCat[k] || 0;
-    const presupCat = cat.presup ? cfg[cat.presup] : Math.max(0, disp - cfg.mercaderia - cfg.ropa - cfg.salidas - cfg.libre);
+    const presupCat = cat.presup ? cfg[cat.presup] || 0 : 0;
     const restante = presupCat - gastado;
     const pctCat = presupCat > 0 ? Math.min(100, Math.round((gastado / presupCat) * 100)) : 0;
     const barColor = pctCat >= 100 ? '#f06060' : cat.color;
@@ -422,6 +422,7 @@ function renderConfig(c) {
     ['Ropa / zapatillas', 'ropa'],
     ['Salidas', 'salidas'],
     ['Fondo libre', 'libre'],
+    ['Otro', 'otro'],
   ];
 
   c.innerHTML = `
