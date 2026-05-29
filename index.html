@@ -125,6 +125,18 @@ select option { background: #1e2330; }
 .config-label { flex: 1; font-size: 13px; }
 .config-row input { width: 120px; flex-shrink: 0; text-align: right; font-family: 'DM Mono', monospace; font-size: 13px; }
 .config-disponible { font-family: 'DM Mono', monospace; font-size: 15px; font-weight: 500; color: var(--blue); text-align: right; padding: 14px 16px; background: var(--blue-dim); border-radius: 12px; margin: 0 20px 16px; }
+.cat-edit-row { display: flex; flex-direction: column; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.cat-edit-row:last-child { border-bottom: none; }
+.cat-edit-top { display: flex; align-items: center; gap: 10px; }
+.cat-edit-color { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border); cursor: pointer; padding: 0; flex-shrink: 0; background: none; }
+.cat-edit-name { flex: 1; font-size: 13px; padding: 7px 10px; }
+.cat-edit-del { background: none; border: none; color: var(--hint); font-size: 20px; cursor: pointer; padding: 4px; line-height: 1; flex-shrink: 0; }
+.cat-edit-del:active { color: var(--red); }
+.cat-edit-bottom { display: flex; align-items: center; gap: 8px; }
+.cat-edit-bottom input[type="number"] { flex: 1; font-size: 13px; padding: 7px 10px; text-align: right; font-family: 'DM Mono', monospace; }
+.cat-edit-bottom label { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.btn-add-cat { width: 100%; background: var(--surface2); border: 1px dashed var(--border); border-radius: 12px; color: var(--muted); font-family: 'DM Sans', sans-serif; font-size: 13px; padding: 12px; cursor: pointer; margin-top: 6px; }
+.btn-add-cat:active { background: var(--surface); color: var(--text); }
 
 /* Historial view */
 .hist-list { padding: 0 20px; display: flex; flex-direction: column; gap: 10px; }
@@ -176,13 +188,15 @@ select option { background: #1e2330; }
 
 <script>
 const MESES_NOMBRES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-const CATS = {
+
+const CATS_DEFAULT = {
   mercaderia: { label: 'Mercadería', color: '#63c46a', presup: 'mercaderia' },
   ropa:       { label: 'Ropa / zapatillas', color: '#a088f0', presup: 'ropa' },
   salidas:    { label: 'Salidas', color: '#f0b860', presup: 'salidas' },
   libre:      { label: 'Fondo libre', color: '#60a8f0', presup: 'libre' },
   otro:       { label: 'Otro', color: '#7a8099', presup: 'otro' }
 };
+let CATS = {...CATS_DEFAULT};
 
 let hoy = new Date();
 let mesActual = hoy.getMonth();
@@ -227,9 +241,14 @@ function saveCfg() {
   save('finanzas_cfg', cfg);
   showToast('guardado ✓');
 }
+function saveCats() {
+  save('finanzas_cats', CATS);
+}
 
 function loadAll() {
   cfg = { ...cfg, ...load('finanzas_cfg', {}) };
+  const savedCats = load('finanzas_cats', null);
+  if (savedCats) CATS = savedCats;
   for (let key of Object.keys(localStorage)) {
     if (key.startsWith('gasto_')) {
       gastosDB[key] = load(key, []);
@@ -417,13 +436,22 @@ function renderConfig(c) {
     ['— Ahorro', 'ahorro'],
     ['— Suscripciones', 'suscripciones'],
   ];
-  const presRows = [
-    ['Mercadería', 'mercaderia'],
-    ['Ropa / zapatillas', 'ropa'],
-    ['Salidas', 'salidas'],
-    ['Fondo libre', 'libre'],
-    ['Otro', 'otro'],
-  ];
+
+  const catRows = Object.entries(CATS).map(([k, cat]) => `
+    <div class="cat-edit-row" id="cat-row-${k}">
+      <div class="cat-edit-top">
+        <input type="color" class="cat-edit-color" value="${cat.color}"
+          onchange="updateCatColor('${k}', this.value)" title="Color" />
+        <input type="text" class="cat-edit-name" value="${cat.label}"
+          onchange="updateCatLabel('${k}', this.value)" placeholder="Nombre" />
+        <button class="cat-edit-del" onclick="deleteCat('${k}')" title="Eliminar">×</button>
+      </div>
+      <div class="cat-edit-bottom">
+        <label>Presupuesto</label>
+        <input type="number" value="${cfg[cat.presup] || 0}" step="1000" inputmode="numeric"
+          onchange="updateCatPresup('${k}', this.value)" />
+      </div>
+    </div>`).join('');
 
   c.innerHTML = `
     <div style="padding:16px 20px 4px">
@@ -435,16 +463,11 @@ function renderConfig(c) {
             <input type="number" value="${cfg[key]}" step="1000" inputmode="numeric" onchange="updateCfg('${key}', this.value)" />
           </div>`).join('')}
       </div>
-      <div class="config-disponible">Disponible: ${fmt(disp)}</div>
+      <div class="config-disponible" id="cfg-disp">Disponible: ${fmt(disp)}</div>
 
-      <div class="section-title" style="padding:0 0 10px">Presupuestos variables</div>
-      <div class="config-group">
-        ${presRows.map(([label, key]) => `
-          <div class="config-row">
-            <span class="config-label">${label}</span>
-            <input type="number" value="${cfg[key]}" step="1000" inputmode="numeric" onchange="updateCfg('${key}', this.value)" />
-          </div>`).join('')}
-      </div>
+      <div class="section-title" style="padding:0 0 10px">Categorías de gastos</div>
+      <div class="config-group" id="cats-group">${catRows}</div>
+      <button class="btn-add-cat" onclick="addCat()">+ Agregar categoría</button>
     </div>
   `;
 }
@@ -452,11 +475,48 @@ function renderConfig(c) {
 function updateCfg(key, val) {
   cfg[key] = parseFloat(val) || 0;
   saveCfg();
-  if (vistaActual === 'config') {
-    const disp = disponible();
-    const el = document.querySelector('.config-disponible');
-    if (el) el.textContent = 'Disponible: ' + fmt(disp);
-  }
+  const el = document.getElementById('cfg-disp');
+  if (el) el.textContent = 'Disponible: ' + fmt(disponible());
+}
+
+function updateCatLabel(k, val) {
+  if (!val.trim()) return;
+  CATS[k].label = val.trim();
+  saveCats();
+}
+
+function updateCatColor(k, val) {
+  CATS[k].color = val;
+  saveCats();
+}
+
+function updateCatPresup(k, val) {
+  const presupKey = CATS[k].presup;
+  cfg[presupKey] = parseFloat(val) || 0;
+  saveCfg();
+}
+
+function deleteCat(k) {
+  if (Object.keys(CATS).length <= 1) { showToast('Debe haber al menos 1 categoría'); return; }
+  delete CATS[k];
+  saveCats();
+  renderVista();
+}
+
+function addCat() {
+  const id = 'cat_' + Date.now();
+  const colors = ['#e85d75','#f0a060','#d4c840','#50c8a0','#60a8f0','#c080f0'];
+  const color = colors[Object.keys(CATS).length % colors.length];
+  CATS[id] = { label: 'Nueva categoría', color, presup: id };
+  cfg[id] = 0;
+  saveCats();
+  saveCfg();
+  renderVista();
+  // Scroll to new category
+  setTimeout(() => {
+    const el = document.getElementById('cat-row-' + id);
+    if (el) el.scrollIntoView({ behavior: 'smooth' });
+  }, 100);
 }
 
 window.addEventListener('beforeinstallprompt', e => {
