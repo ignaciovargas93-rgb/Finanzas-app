@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Mapa HyN">
+<meta name="theme-color" content="#0a0f1e">
+<title>Mapa Unidades — HyN</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0f1e;
+  --surface: #111827;
+  --border: rgba(255,255,255,0.08);
+  --text: #f0f4ff;
+  --muted: #6b7a99;
+  --accent: #3b82f6;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  /* Colores por día */
+  --lunes:    #f43f5e;
+  --martes:   #f97316;
+  --miercoles:#eab308;
+  --jueves:   #22c55e;
+  --viernes:  #3b82f6;
+  --sabado:   #a855f7;
+  --domingo:  #ec4899;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Syne', sans-serif; overflow: hidden; }
+
+/* Layout */
+.app { display: flex; height: 100vh; height: 100dvh; }
+
+/* Sidebar */
+.sidebar {
+  width: 300px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 10;
+}
+
+.sidebar-header {
+  padding: calc(var(--safe-top) + 18px) 20px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.logo { font-size: 11px; font-family: 'Space Mono', monospace; color: var(--muted); letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 6px; }
+.title { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+
+.filter-bar {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.filter-label { font-size: 10px; font-family: 'Space Mono', monospace; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
+.day-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.day-pill {
+  font-size: 11px; font-family: 'Space Mono', monospace;
+  padding: 4px 10px; border-radius: 99px;
+  border: 1.5px solid;
+  cursor: pointer; transition: all 0.15s;
+  opacity: 0.45;
+}
+.day-pill.active { opacity: 1; }
+.day-pill:hover { opacity: 0.8; }
+
+.addresses-list { flex: 1; overflow-y: auto; padding: 8px 0; }
+.day-group { margin-bottom: 4px; }
+.day-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 16px; cursor: pointer;
+  font-size: 12px; font-weight: 600; letter-spacing: 0.05em;
+  text-transform: uppercase; position: sticky; top: 0;
+  background: var(--surface); z-index: 1;
+}
+.day-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.day-count { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted); margin-left: auto; }
+.day-chevron { color: var(--muted); font-size: 12px; transition: transform 0.2s; }
+.day-group.collapsed .day-chevron { transform: rotate(-90deg); }
+.day-group.collapsed .addr-list { display: none; }
+
+.addr-item {
+  padding: 10px 16px 10px 32px;
+  cursor: pointer; border-left: 2px solid transparent;
+  transition: all 0.15s;
+}
+.addr-item:hover { background: rgba(255,255,255,0.04); }
+.addr-item.active { background: rgba(255,255,255,0.06); }
+.addr-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.addr-meta { font-size: 11px; font-family: 'Space Mono', monospace; color: var(--muted); margin-top: 2px; }
+.addr-user { color: var(--accent); }
+
+/* Map */
+.map-container { flex: 1; position: relative; }
+#map { width: 100%; height: 100%; }
+
+/* Reload btn */
+.reload-btn {
+  position: absolute; bottom: calc(var(--safe-bottom) + 16px); right: 16px;
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text); border-radius: 12px;
+  padding: 10px 16px; font-family: 'Syne', sans-serif;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  display: flex; align-items: center; gap: 8px;
+  transition: all 0.15s; z-index: 5;
+}
+.reload-btn:hover { background: rgba(255,255,255,0.1); }
+.reload-btn:active { transform: scale(0.96); }
+.spin { display: inline-block; }
+.spinning { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Status bar */
+.status {
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 99px; padding: 6px 16px;
+  font-size: 12px; font-family: 'Space Mono', monospace;
+  color: var(--muted); z-index: 5; white-space: nowrap;
+  transition: opacity 0.3s;
+}
+
+/* Popup */
+.map-popup {
+  position: absolute; z-index: 20;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 14px 16px;
+  min-width: 220px; max-width: 280px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  display: none;
+}
+.map-popup.show { display: block; }
+.popup-dir { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+.popup-meta { font-size: 11px; font-family: 'Space Mono', monospace; color: var(--muted); margin-bottom: 10px; }
+.popup-btn {
+  display: block; width: 100%; text-align: center;
+  background: var(--accent); color: #fff;
+  border: none; border-radius: 8px; padding: 8px;
+  font-family: 'Syne', sans-serif; font-weight: 600; font-size: 13px;
+  cursor: pointer; text-decoration: none;
+}
+.popup-close { position: absolute; top: 10px; right: 12px; background: none; border: none; color: var(--muted); font-size: 18px; cursor: pointer; line-height: 1; }
+
+/* Empty */
+.empty { padding: 40px 20px; text-align: center; color: var(--muted); font-size: 13px; font-family: 'Space Mono', monospace; line-height: 1.8; }
+
+/* Mobile: sidebar toggle */
+@media (max-width: 640px) {
+  .app { flex-direction: column-reverse; }
+  .sidebar { width: 100%; height: 45vh; border-right: none; border-top: 1px solid var(--border); }
+  .map-container { height: 55vh; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">HyN · Unidades</div>
+      <div class="title">Mapa de Direcciones</div>
+    </div>
+    <div class="filter-bar">
+      <div class="filter-label">Filtrar por día</div>
+      <div class="day-filters" id="day-filters"></div>
+    </div>
+    <div class="addresses-list" id="addresses-list">
+      <div class="empty">Cargando direcciones...</div>
+    </div>
+  </aside>
+
+  <div class="map-container">
+    <div id="map"></div>
+    <div class="status" id="status">Conectando...</div>
+    <div class="map-popup" id="map-popup">
+      <button class="popup-close" onclick="closePopup()">×</button>
+      <div class="popup-dir" id="popup-dir"></div>
+      <div class="popup-meta" id="popup-meta"></div>
+      <a class="popup-btn" id="popup-link" href="#" target="_blank">Ver en Google Maps →</a>
+    </div>
+    <button class="reload-btn" onclick="loadData()">
+      <span class="spin" id="spin-icon">↻</span> Actualizar
+    </button>
+  </div>
+</div>
+
+<script>
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CONFIGURACIÓN
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const SHEET_ID = '1oXWbAyurzNBCSrW47yxWO0jL4GB1ZhMpeDInyFXM0Js';
+const MAPS_KEY = 'AIzaSyDUq2e4OqaY0KbrUwEIdHezW0zp-SswHws';
+const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=Hoja%201`;
+
+const DIAS = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+const DIA_COLORS = {
+  'Lunes':     '#f43f5e',
+  'Martes':    '#f97316',
+  'Miércoles': '#eab308',
+  'Jueves':    '#22c55e',
+  'Viernes':   '#3b82f6',
+  'Sábado':    '#a855f7',
+  'Domingo':   '#ec4899',
+};
+
+let map, markers = {}, allData = [], activeFilters = new Set(Object.keys(DIA_COLORS));
+let activeMarker = null;
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// GOOGLE MAPS INIT
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function initMap() {
+  map = new google.maps.Map(document.getElementById('map'), {
+    center: { lat: -33.45, lng: -70.66 },
+    zoom: 12,
+    mapTypeId: 'roadmap',
+    styles: [
+      { elementType: 'geometry', stylers: [{ color: '#0a0f1e' }] },
+      { elementType: 'labels.text.stroke', stylers: [{ color: '#0a0f1e' }] },
+      { elementType: 'labels.text.fill', stylers: [{ color: '#6b7a99' }] },
+      { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#1e2a45' }] },
+      { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#111827' }] },
+      { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#8a97b3' }] },
+      { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#2a3a5e' }] },
+      { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#050d1c' }] },
+      { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+      { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+    ],
+    disableDefaultUI: true,
+    zoomControl: true,
+    zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_CENTER }
+  });
+  loadData();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CARGAR DATOS DESDE SHEETS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function loadData() {
+  setStatus('Actualizando...');
+  document.getElementById('spin-icon').classList.add('spinning');
+
+  try {
+    const res = await fetch(SHEET_URL);
+    const text = await res.text();
+    const json = JSON.parse(text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/)[1]);
+    const rows = json.table.rows || [];
+
+    allData = rows.map(r => {
+      const cols = r.c || [];
+      const fechaStr = cols[0]?.v || '';
+      const usuario  = cols[1]?.v || 'Desconocido';
+      const direccion= cols[2]?.v || '';
+      const mapsUrl  = cols[3]?.v || '';
+
+      // Parsear fecha y obtener día de la semana
+      let diaNombre = 'Sin día';
+      let fechaDisplay = fechaStr;
+      try {
+        // Formato puede ser DD/MM/YYYY HH:mm o similar
+        const parts = fechaStr.split(/[\s,]+/);
+        const datePart = parts[0];
+        const [d, m, y] = datePart.split('/').map(Number);
+        if (d && m && y) {
+          const fecha = new Date(y < 100 ? 2000 + y : y, m - 1, d);
+          diaNombre = DIAS[fecha.getDay()];
+          fechaDisplay = fecha.toLocaleDateString('es-CL', { weekday:'short', day:'numeric', month:'short' });
+        }
+      } catch(e) {}
+
+      return { fechaStr, fechaDisplay, usuario, direccion, mapsUrl, diaNombre };
+    }).filter(r => r.direccion);
+
+    clearMarkers();
+    await geocodeAndRender();
+    setStatus(`${allData.length} direcciones cargadas`);
+  } catch(e) {
+    setStatus('Error al cargar datos');
+    console.error(e);
+  }
+
+  document.getElementById('spin-icon').classList.remove('spinning');
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// GEOCODIFICAR Y RENDERIZAR
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const geocoder = new google.maps.Geocoder();
+const geocodeCache = {};
+
+async function geocodeAddr(dir, mapsUrl) {
+  // Si tiene link de maps con coordenadas, extraerlas
+  if (mapsUrl) {
+    const m = mapsUrl.match(/q=([-\d.]+),([-\d.]+)/);
+    if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
+  }
+  if (geocodeCache[dir]) return geocodeCache[dir];
+  return new Promise(resolve => {
+    geocoder.geocode({ address: dir + ', Chile', region: 'cl' }, (results, status) => {
+      if (status === 'OK') {
+        const loc = { lat: results[0].geometry.location.lat(), lng: results[0].geometry.location.lng() };
+        geocodeCache[dir] = loc;
+        resolve(loc);
+      } else resolve(null);
+    });
+  });
+}
+
+async function geocodeAndRender() {
+  // Agrupar por día
+  const byDay = {};
+  for (const item of allData) {
+    if (!byDay[item.diaNombre]) byDay[item.diaNombre] = [];
+    byDay[item.diaNombre].push(item);
+  }
+
+  // Renderizar sidebar
+  renderSidebar(byDay);
+  renderDayFilters(byDay);
+
+  // Geocodificar y poner marcadores
+  const bounds = new google.maps.LatLngBounds();
+  let anyPin = false;
+
+  for (const item of allData) {
+    const color = DIA_COLORS[item.diaNombre] || '#6b7a99';
+    const loc = await geocodeAddr(item.direccion, item.mapsUrl);
+    if (!loc) continue;
+
+    const marker = new google.maps.Marker({
+      position: loc,
+      map,
+      title: item.direccion,
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 8,
+        fillColor: color,
+        fillOpacity: 0.9,
+        strokeColor: '#fff',
+        strokeWeight: 1.5,
+      }
+    });
+
+    marker.addListener('click', () => showPopup(item, marker));
+    item._marker = marker;
+    item._loc = loc;
+    bounds.extend(loc);
+    anyPin = true;
+  }
+
+  if (anyPin) map.fitBounds(bounds, { top: 40, right: 40, bottom: 40, left: 40 });
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SIDEBAR
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function renderSidebar(byDay) {
+  const list = document.getElementById('addresses-list');
+  const ordenDias = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+
+  if (Object.keys(byDay).length === 0) {
+    list.innerHTML = '<div class="empty">No hay direcciones aún.<br>Envía una al grupo de Telegram.</div>';
+    return;
+  }
+
+  list.innerHTML = ordenDias
+    .filter(d => byDay[d] && activeFilters.has(d))
+    .map(dia => {
+      const items = byDay[dia] || [];
+      const color = DIA_COLORS[dia] || '#6b7a99';
+      return `
+        <div class="day-group" id="group-${dia}">
+          <div class="day-header" onclick="toggleGroup('${dia}')">
+            <div class="day-dot" style="background:${color}"></div>
+            <span style="color:${color}">${dia}</span>
+            <span class="day-count">${items.length}</span>
+            <span class="day-chevron">›</span>
+          </div>
+          <div class="addr-list">
+            ${items.map((item, i) => `
+              <div class="addr-item" id="addr-${dia}-${i}"
+                   style="border-left-color:${color}"
+                   onclick="selectAddr('${dia}',${i})">
+                <div class="addr-name">${item.direccion}</div>
+                <div class="addr-meta">
+                  <span class="addr-user">${item.usuario}</span> · ${item.fechaDisplay}
+                </div>
+              </div>`).join('')}
+          </div>
+        </div>`;
+    }).join('');
+}
+
+function renderDayFilters(byDay) {
+  const container = document.getElementById('day-filters');
+  container.innerHTML = Object.entries(DIA_COLORS)
+    .filter(([d]) => byDay[d])
+    .map(([dia, color]) => `
+      <div class="day-pill active" id="pill-${dia}"
+           style="border-color:${color};color:${color}"
+           onclick="toggleFilter('${dia}','${color}')">
+        ${dia.slice(0,3)}
+      </div>`).join('');
+}
+
+function toggleGroup(dia) {
+  document.getElementById(`group-${dia}`)?.classList.toggle('collapsed');
+}
+
+function toggleFilter(dia, color) {
+  const pill = document.getElementById(`pill-${dia}`);
+  if (activeFilters.has(dia)) {
+    activeFilters.delete(dia);
+    pill.classList.remove('active');
+  } else {
+    activeFilters.add(dia);
+    pill.classList.add('active');
+  }
+  // Mostrar/ocultar marcadores
+  for (const item of allData) {
+    if (item._marker) {
+      item._marker.setVisible(activeFilters.has(item.diaNombre));
+    }
+  }
+  // Re-render sidebar
+  const byDay = {};
+  for (const item of allData) {
+    if (!byDay[item.diaNombre]) byDay[item.diaNombre] = [];
+    byDay[item.diaNombre].push(item);
+  }
+  renderSidebar(byDay);
+}
+
+function selectAddr(dia, idx) {
+  // Quitar selección previa
+  document.querySelectorAll('.addr-item.active').forEach(el => el.classList.remove('active'));
+  const el = document.getElementById(`addr-${dia}-${idx}`);
+  if (el) el.classList.add('active');
+
+  const item = allData.filter(d => d.diaNombre === dia)[idx];
+  if (!item || !item._loc) return;
+
+  map.panTo(item._loc);
+  map.setZoom(15);
+  if (item._marker) showPopup(item, item._marker);
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// POPUP
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function showPopup(item, marker) {
+  const popup = document.getElementById('map-popup');
+  document.getElementById('popup-dir').textContent = item.direccion;
+  document.getElementById('popup-meta').textContent = `${item.usuario} · ${item.diaNombre} ${item.fechaDisplay}`;
+
+  const mapsLink = item.mapsUrl || `https://www.google.com/maps/search/${encodeURIComponent(item.direccion + ', Chile')}`;
+  document.getElementById('popup-link').href = mapsLink;
+
+  // Posicionar popup cerca del marcador
+  const point = fromLatLngToPoint(marker.getPosition());
+  if (point) {
+    popup.style.left = (point.x + 12) + 'px';
+    popup.style.top  = (point.y - 40) + 'px';
+  }
+  popup.classList.add('show');
+}
+
+function closePopup() {
+  document.getElementById('map-popup').classList.remove('show');
+}
+
+function fromLatLngToPoint(latLng) {
+  try {
+    const proj = map.getProjection();
+    const bounds = map.getBounds();
+    const ne = proj.fromLatLngToPoint(bounds.getNorthEast());
+    const sw = proj.fromLatLngToPoint(bounds.getSouthWest());
+    const scale = Math.pow(2, map.getZoom());
+    const pt = proj.fromLatLngToPoint(latLng);
+    const mapEl = document.getElementById('map');
+    return {
+      x: (pt.x - sw.x) * scale,
+      y: (pt.y - ne.y) * scale
+    };
+  } catch(e) { return null; }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// HELPERS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function clearMarkers() {
+  for (const item of allData) {
+    if (item._marker) item._marker.setMap(null);
+  }
+}
+
+function setStatus(msg) {
+  document.getElementById('status').textContent = msg;
+}
+
+// Click en mapa cierra popup
+google.maps?.event?.addListener?.();
+
+window.initMap = initMap;
+</script>
+
+<!-- Google Maps API -->
+<script async src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDUq2e4OqaY0KbrUwEIdHezW0zp-SswHws&callback=initMap&language=es&region=CL"></script>
+
+</body>
+</html>
